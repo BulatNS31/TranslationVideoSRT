@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "translationvideo"
+version = "0.1.0"
+description = ""
+authors = ["Bulat Nasyrov <bulatnasirov2003@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pysrt = "^1.1.2"
+librosa = "^0.11.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
