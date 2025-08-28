@@ -81,11 +81,4 @@ create_srt("orig.txt", "translate.txt", "song.mp3", "output.srt")
 
 ## License
 
-MIT License
-
----
-
-## Contact
-
-If you have questions or suggestions, please open an issue or contact me directly.
-```
+Apache License
