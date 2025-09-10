@@ -33,7 +33,7 @@ def create_srt(orig_text_file, translate_text_file, audio_file, output_srt_file)
 
 	subs = pysrt.SubRipFile()
 
-	min_duration = 1.5
+	min_duration = 2.0
 	max_duration = 8.0
 
 	for i in range(len(original_lines)):
