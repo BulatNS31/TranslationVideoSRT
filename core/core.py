@@ -2,7 +2,6 @@ import pysrt
 import librosa
 import numpy as np
 
-
 def create_srt(orig_text_file, translate_text_file, audio_file, output_srt_file):
 	with open(orig_text_file, 'r', encoding='utf-8') as f:
 		original_lines = [line.strip() for line in f if line.strip()]
@@ -20,7 +19,7 @@ def create_srt(orig_text_file, translate_text_file, audio_file, output_srt_file)
 	rms_times = librosa.times_like(rms, sr=sr)
 
 	# Находим пики RMS (вокальные моменты)
-	peaks = librosa.util.peak_pick(rms, pre_max=3, post_max=3, pre_avg=3, post_avg=3, delta=0.02, wait=5)
+	peaks = librosa.util.peak_pick(rms, pre_max=3, post_max=3, pre_avg=3, post_avg=3, delta=0.02, wait=10)  # ↑ wait=10
 
 	# Если пиков меньше, чем строк, равномерно распределяем
 	if len(peaks) < len(original_lines):
@@ -33,21 +32,38 @@ def create_srt(orig_text_file, translate_text_file, audio_file, output_srt_file)
 
 	subs = pysrt.SubRipFile()
 
-	min_duration = 2.0
-	max_duration = 8.0
+	min_duration = 1.5  # Минимум 1.5 секунды
+	max_duration = 6.0  # Максимум 6 секунд
+	gap_between_subtitles = 0.1  # Зазор между субтитрами
+
+	last_end_time = 0  # Следим за окончанием предыдущего субтитра
 
 	for i in range(len(original_lines)):
-		start_time = time_points[i]
-		end_time = time_points[i+1] if i < len(original_lines) - 1 else duration
-
-		# Корректируем длительность
-		dur = end_time - start_time
-		if dur < min_duration:
+		start_time = max(time_points[i], last_end_time + gap_between_subtitles)
+		
+		# Базовый расчет конечного времени
+		if i < len(original_lines) - 1:
+			end_time = time_points[i+1]
+		else:
+			end_time = duration
+		
+		# Гарантируем минимальную длительность
+		if end_time - start_time < min_duration:
 			end_time = start_time + min_duration
-			if i < len(original_lines) - 1 and end_time > time_points[i+1]:
-				end_time = time_points[i+1] - 0.1
-		elif dur > max_duration:
+		
+		# Гарантируем максимальную длительность
+		if end_time - start_time > max_duration:
 			end_time = start_time + max_duration
+		
+		# Не превышаем общую длительность аудио
+		end_time = min(end_time, duration)
+		
+		# Проверяем, что начало не позже конца
+		if start_time >= end_time:
+			start_time = end_time - min_duration
+		
+		# Обновляем время окончания для следующего субтитра
+		last_end_time = end_time
 
 		text = f"{translated_lines[i]}"
 
@@ -61,7 +77,6 @@ def create_srt(orig_text_file, translate_text_file, audio_file, output_srt_file)
 
 	subs.save(output_srt_file, encoding='utf-8')
 	print(f"Субтитры сохранены в {output_srt_file}")
-
 
 if __name__ == "__main__":
 	create_srt("orig.txt", "translate.txt", "song.mp3", "output.srt")
