@@ -1,80 +1,69 @@
-# Automatic Subtitle Generation for Audio with Translation
+# TranslationVideoSRT
 
-This project generates subtitle files (SRT) for audio files (e.g., songs or speech recordings) based on the original text and its translation. Subtitles are synchronized with the audio using either **local RMS analysis** (`librosa`) or **OpenAI Whisper API** for automatic transcription, and optionally translated to Russian.
+Приложение анализирует аудиофайл песни, при необходимости читает пользовательский
+`.srt`, выбирает одну-две строки, подбирает фон и собирает вертикальное видео
+1080x1920. На выходе создаются `clip.mp4`, `subs.srt`, `post.txt` и `meta.json`.
 
----
+## Как работает
 
-## Features
+- Аудио анализируется локально с помощью librosa, а текст без входного `.srt`
+  распознаётся локальной моделью Whisper.
+- Язык текста из `.srt` определяется офлайн библиотекой lingua.
+- **Перевод по умолчанию выполняется через googletrans** — неофициальный API
+  Google Translate. Текст строк-кандидатов уходит в интернет для перевода, ещё
+  до того, как локальная LLM выберет строки для видео.
+- Если googletrans не перевёл строку, включённый по умолчанию локальный
+  LLM-fallback пытается перевести её через Ollama. Его можно отключить,
+  установив `PipelineConfig(translation_fallback_to_llm=False)`.
+- Выбор строк и категории фона, а также генерация метаданных выполняются
+  локальной LLM через Ollama. По умолчанию используется модель `llama3.2`;
+  её можно переопределить переменной окружения `OLLAMA_MODEL`. Ollama должна
+  быть запущена локально на `127.0.0.1:1234`.
+- Рендеринг видео выполняется установленным в PATH FFmpeg.
 
-- Audio analysis (MP3, WAV, etc.) using `librosa` **or** OpenAI Whisper API
-- Automatic timing estimation for each translated subtitle line
-- Generation of SRT subtitle files
-- Supports original text and translation (optionally outputs only translation)
-- Configurable minimum and maximum subtitle durations
+Таким образом, локально работают все этапы, кроме перевода через googletrans
+(и только при необходимости — fallback-перевода через локальную Ollama).
+Выбор строк, фона и метаданных не отправляет данные в сторонние LLM-сервисы.
 
----
+## Установка
 
-## Requirements
-
-- Python 3.6+
-- Poetry for dependency management
-- (Optional) OpenAI API key for server-based transcription
-
----
-
-## Installation
-
-Clone the repository and install dependencies with Poetry:
+Требуются Python 3.12+ и Poetry:
 
 ```bash
 poetry install
 ```
 
-## Usage
-1. Local RMS-based subtitles (core.py)
-Prepare three files:
+Для транскрибации используйте модель Whisper, доступную через пакет
+`openai-whisper`. Для локальной генерации установите и запустите Ollama с
+подходящей моделью. FFmpeg должен находиться в `PATH`.
 
-   - orig.txt — original text, one phrase or sentence per line
-   - translate.txt — translation, one line per corresponding original phrase
-   - song.mp3 — audio file with the recording
+## Использование API
 
-Run the local RMS script:
-```bash
-poetry run python core.py
-```
-2. The script will generate output.srt with subtitles containing only the translated text, synchronized approximately with the audio.
+Поместите ровно один MP3 в `source/`. По умолчанию пайплайн ищет его там и
+сохраняет туда же все результаты (`clip.mp4`, `subs.srt`, `post.txt`,
+`meta.json`). Если рядом лежит SRT с таким же именем, он будет использован
+автоматически. При нескольких MP3 укажите конкретный файл в `audio_path`.
 
-3. Server-based transcription with OpenAI Whisper (srt_core.py)
-Set your OpenAI API key in srt_core.py:
+## Запуск
+
+Из корня проекта выполните:
 
 ```bash
-openai.api_key = "YOUR_API_KEY"
+python manage.py core
 ```
-Run the script:
+
+Команда обработает MP3 из `source/`; готовое видео и остальные файлы появятся
+там же. Запустить другие части проекта или тесты можно так:
 
 ```bash
-poetry run python srt_core.py
+python manage.py voice
+python manage.py tests
 ```
 
-The script will:
-- Upload audio to OpenAI Whisper API
-- Receive transcription
-- Translate lines to Russian
-- Generate srt_output.srt with subtitles containing translation and optionally original text
+При использовании Poetry добавьте `poetry run` перед командой, например
+`poetry run python manage.py core`. Перед обработкой должны быть установлены
+зависимости, FFmpeg и запущена Ollama.
 
-## Notes
-
-- For local RMS analysis, if the number of detected peaks is less than the number of subtitle lines, subtitles are distributed evenly.
-- Minimum subtitle duration (local) is 1.5–2 seconds, maximum is configurable.
-- Server transcription currently generates approximate timestamps; for precise alignment, further processing is needed.
-- Subtitles include translated text; original text can optionally be included.
-
-## Possible Improvements
-
-- Use forced alignment for precise text-to-audio synchronization
-- Apply Voice Activity Detection (VAD) for better segment detection
-- Merge local and server approaches for hybrid accuracy
-- Add a graphical user interface for easier usage
-
-## License
-Apache License
+Если рядом с MP3 нет `.srt`, текст распознаётся локальным Whisper. Папка с
+фонами может содержать файлы с названиями категорий в начале имени, например
+`rain_1.jpg`, `sea.png`, `default.jpg`.
